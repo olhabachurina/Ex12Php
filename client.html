@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Employee Table with Filters and Sorting</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .background-video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: -1;
+            filter: brightness(0.5);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 70%;
+            background: rgba(30, 26, 26, 0.9);
+            border-radius: 15px;
+            box-shadow: 0px 8px 15px rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            z-index: 1;
+        }
+
+        #filters {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            width: 45%;
+        }
+
+        h3 {
+            color: #00d4ff;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        #filters label {
+            display: block;
+            font-size: 14px;
+            color: #fff;
+            margin-bottom: 5px;
+            cursor: pointer;
+        }
+
+        input[type="checkbox"] {
+            margin-right: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px;
+        }
+
+        th {
+            background: #00d4ff;
+            color: #000;
+            font-size: 16px;
+            position: relative;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        th .sort-icon {
+            margin-left: 5px;
+            font-size: 12px;
+            display: inline-block;
+            transition: transform 0.3s ease;
+        }
+
+        .sort-asc .sort-icon {
+            transform: rotate(180deg);
+        }
+
+        td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 15px;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #loading {
+            display: none;
+            color: #00d4ff;
+            text-align: center;
+            font-size: 18px;
+            margin-top: 20px;
+        }
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+
+<video class="background-video" autoplay loop muted>
+    <source src="Fon.mp4" type="video/mp4">
+    Your browser does not support video backgrounds.
+</video>
+
+<div class="container">
+    <div id="filters">
+        <div class="filter-group">
+            <h3>Filter by Country:</h3>
+            <div id="country-filters"></div>
+        </div>
+
+        <div class="filter-group">
+            <h3>Filter by City:</h3>
+            <div id="city-filters"></div>
+        </div>
+    </div>
+
+    <table id="employee-table">
+        <thead>
+            <tr>
+                <th data-sort="Name" class="sortable">Name <span class="sort-icon">▼</span></th>
+                <th data-sort="Surname" class="sortable">Surname <span class="sort-icon">▼</span></th>
+                <th data-sort="Country" class="sortable">Country <span class="sort-icon">▼</span></th>
+                <th data-sort="City" class="sortable">City <span class="sort-icon">▼</span></th>
+                <th data-sort="Salary" class="sortable">Salary <span class="sort-icon">▼</span></th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div id="loading">Loading data...</div>
+</div>
+
+<script>
+    let sortField = 'Name';
+    let sortOrder = 'asc';
+
+    function loadFilters() {
+        $.ajax({
+            url: 'http://localhost/Ex12PhpServer/get_filters.php',
+            method: 'GET',
+            beforeSend: function () {
+                $('#loading').show();
+            },
+            success: function(data) {
+                $('#loading').hide();
+                $('#country-filters, #city-filters').empty();
+                const filters = JSON.parse(data);
+
+                filters.countries.forEach(country => {
+                    $('#country-filters').append(`<label><input type="checkbox" class="country-filter" value="${country}">${country}</label>`);
+                });
+
+                filters.cities.forEach(city => {
+                    $('#city-filters').append(`<label><input type="checkbox" class="city-filter" value="${city}">${city}</label>`);
+                });
+            },
+            error: function() {
+                $('#loading').hide();
+                alert('Error loading filters.');
+            }
+        });
+    }
+
+    function fetchEmployees() {
+        const selectedCountries = $('.country-filter:checked').map(function() {
+            return $(this).val();
+        }).get();
+
+        const selectedCities = $('.city-filter:checked').map(function() {
+            return $(this).val();
+        }).get();
+
+        $.ajax({
+            url: 'http://localhost/Ex12PhpServer/filter.php',
+            method: 'GET',
+            data: {
+                country: selectedCountries.join(','),
+                city: selectedCities.join(','),
+                sort_field: sortField,
+                sort_order: sortOrder
+            },
+            beforeSend: function () {
+                $('#loading').show();
+            },
+            success: function(data) {
+                $('#loading').hide();
+                $('#employee-table tbody').empty();
+                const employees = JSON.parse(data);
+
+                if (employees.length === 0) {
+                    $('#employee-table tbody').append(`
+                        <tr>
+                            <td colspan="5" style="text-align: center;">No data available</td>
+                        </tr>
+                    `);
+                } else {
+                    employees.forEach(employee => {
+                        $('#employee-table tbody').append(`
+                            <tr>
+                                <td>${employee.Name}</td>
+                                <td>${employee.Surname}</td>
+                                <td>${employee.Country}</td>
+                                <td>${employee.City}</td>
+                                <td>${employee.Salary}</td>
+                            </tr>
+                        `);
+                    });
+                }
+            },
+            error: function() {
+                $('#loading').hide();
+                alert('Error loading employee data.');
+            }
+        });
+    }
+
+    $(document).ready(function() {
+        loadFilters();
+        fetchEmployees();
+
+        $('#filters').on('input change', 'input', fetchEmployees);
+
+        $('.sortable').on('click', function() {
+            const field = $(this).data('sort');
+            if (sortField === field) {
+                sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortOrder = 'asc';
+            }
+
+            $('.sortable').removeClass('sort-asc sort-desc');
+            $(this).addClass(sortOrder === 'asc' ? 'sort-asc' : 'sort-desc');
+            fetchEmployees();
+        });
+    });
+</script>
+
+</body>
+</html>
